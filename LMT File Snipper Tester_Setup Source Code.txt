@@ -1,0 +1,72 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace LMT_File_Snipper
+{
+    public partial class Tester_Setup : Form
+    {
+        public Tester_Setup()
+        {
+            InitializeComponent();
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                IniFile myini = new IniFile("Tester.ini");
+                myini.Write("FTP_URL_Ori", textBox_IP.Text, textBox_Tester_Name.Text);
+                myini.Write("User", textBox_User.Text, textBox_Tester_Name.Text);
+                myini.Write("Password", textBox_Password.Text, textBox_Tester_Name.Text);
+                MessageBox.Show("New Site registerd!");
+            }
+            catch (Exception) { }
+        }
+
+        private void label4_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label2_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label3_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void textBox_Password_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void textBox_User_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void textBox_IP_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void textBox_Tester_Name_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+    }
+}

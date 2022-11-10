@@ -1,0 +1,52 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace LMT_File_Snipper
+{
+    public partial class Site_Modification : Form
+    {
+        public Site_Modification()
+        {
+            InitializeComponent();
+        }
+
+        private void comboBox_Site_Click(object sender, EventArgs e)
+        {
+            comboBox_Site.Items.Clear();
+            IniFile config = new IniFile("Tester.ini");
+            var x = config.GetSection(Application.StartupPath + "\\Tester.ini");
+
+            foreach (string tester in x)
+            {
+                comboBox_Site.Items.Add(tester);
+            }
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                IniFile myini = new IniFile("Tester.ini");
+                myini.Write("FTP_URL_Ori", textBox_IP.Text, comboBox_Site.Text);
+                myini.Write("User", textBox_User.Text, comboBox_Site.Text);
+                myini.Write("Password", textBox_Password.Text, comboBox_Site.Text);
+                MessageBox.Show("Site is modified succesfully!");
+            }
+            catch (Exception) { }
+        }
+
+        private void comboBox_Site_DropDownClosed(object sender, EventArgs e)
+        {
+            IniFile myini = new IniFile("Tester.ini");
+            textBox_IP.Text = myini.Read("FTP_URL_Ori",comboBox_Site.Text);
+            textBox_User.Text = myini.Read("User", comboBox_Site.Text);
+            textBox_Password.Text = myini.Read("Password", comboBox_Site.Text);
+        }
+    }
+}

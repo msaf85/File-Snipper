@@ -1,0 +1,650 @@
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Windows.Forms;
+using static System.Net.WebRequestMethods;
+
+namespace LMT_File_Snipper
+{
+
+    public partial class Form1 : Form
+    {
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        Stack FTP_Path_Backward = new Stack();
+        Stack FTP_Path_Forward = new Stack();
+
+        //----------------------------Window FTP Access-----------------------------------------------------------------------------------------------------------------
+        public void FTP_Window_List_Directory_Details(FtpWebRequest request, FtpWebResponse response)
+        {
+            string[] temp_data_single = null; string temp_txt = ""; string[] file_info_line_by_line = null;
+            Stream responseStream = response.GetResponseStream();
+            StreamReader reader = new StreamReader(responseStream);
+            temp_txt = reader.ReadToEnd();
+            responseStream.Close();
+            reader.Close();
+            request.Abort();
+            file_info_line_by_line = temp_txt.Split((new Char[] { '\n', }), StringSplitOptions.RemoveEmptyEntries);
+            for (int a = 0; a < file_info_line_by_line.Count(); a++)
+            {
+                try
+                {
+                    //temp_data_single = System.Text.RegularExpressions.Regex.Split(file_info_line_by_line[a], @"\s{1,}");
+                    temp_data_single = file_info_line_by_line[a].Split(new char[] { ' ' }, 4, StringSplitOptions.RemoveEmptyEntries);
+                    dataGridView_Display.Rows.Add();
+                    dataGridView_Display[0, a].Value = temp_data_single[3].Trim();
+                    dataGridView_Display[1, a].Value = temp_data_single[0] + "  " + temp_data_single[1];
+                    if (temp_data_single[2] == "<DIR>") { dataGridView_Display[2, a].Style.BackColor = Color.LightBlue; dataGridView_Display[2, a].Value = temp_data_single[2]; }
+                    else
+                    {
+                        double temp = double.Parse(temp_data_single[2]);
+                        dataGridView_Display[3, a].Value = Math.Round(temp / 1000);
+                        dataGridView_Display[2, a].Value = Path.GetExtension(temp_data_single[3].Trim());
+                    }
+                }
+                catch (Exception) { }
+            }
+        }
+        //----------------------------Window FTP Access-----------------------------------------------------------------------------------------------------------------
+        //----------------------------Linux FTP Access------------------------------------------------------------------------------------------------------------------
+        public void FTP_Linux_List_Directory_Details(FtpWebRequest request, FtpWebResponse response)
+        {
+            string[] temp_data_single = null; string temp_txt = ""; string[] file_info_line_by_line = null;
+            Stream responseStream = response.GetResponseStream();
+            StreamReader reader = new StreamReader(responseStream);
+            temp_txt = reader.ReadToEnd();
+            responseStream.Close();
+            reader.Close();
+            request.Abort();
+            file_info_line_by_line = temp_txt.Split((new Char[] { '\n', }), StringSplitOptions.RemoveEmptyEntries);
+            for (int a = 1; a < file_info_line_by_line.Count(); a++)
+            {
+                //temp_data_single = System.Text.RegularExpressions.Regex.Split(file_info_line_by_line[a], @"\s{1,}").Take(9).ToArray();
+                try
+                {
+                    temp_data_single = file_info_line_by_line[a].Split(new char[] { ' ' }, 9, StringSplitOptions.RemoveEmptyEntries);
+                    if (temp_data_single[8] != "." || temp_data_single[8] != "..")
+                    {
+                        dataGridView_Display.Rows.Add();
+                        dataGridView_Display[0, a - 1].Value = temp_data_single[8];
+                        dataGridView_Display[1, a - 1].Value = temp_data_single[5] + "  " + temp_data_single[6] + "  " + temp_data_single[7];
+                        if (temp_data_single[0].StartsWith("d"))
+                        {
+                            dataGridView_Display[2, a - 1].Style.BackColor = Color.LightBlue;
+                            dataGridView_Display[2, a - 1].Value = "<DIR>";
+                        }
+                        else if (temp_data_single[0].StartsWith("l"))
+                        {
+                            dataGridView_Display[2, a - 1].Style.BackColor = Color.LightGray;
+                            dataGridView_Display[2, a - 1].Value = "<Shortcut>";
+                        }
+                        else
+                        {
+                            double temp = double.Parse(temp_data_single[4]);
+                            dataGridView_Display[3, a - 1].Value = Math.Round(temp / 1000);
+                            dataGridView_Display[2, a - 1].Value = Path.GetExtension(temp_data_single[8]);
+                        }
+                    }
+                }
+                catch (Exception) { }
+            }
+        }
+
+        public void FTP_Linux_List_Directory(string FTP_Path,string Local_Directory ,  BackgroundWorker helperBW, DoWorkEventArgs e)
+        {
+            string User = textBox_user_input.Text;
+            string Password = textBox_password_input.Text;
+
+            string[] temp_data_single = null; string temp_txt = ""; string[] file_info_line_by_line = null;
+            FtpWebRequest request = (FtpWebRequest)WebRequest.Create(FTP_Path+"\\");  //get file list with details from FTP, only 1 IP_URL is needed
+            request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+            request.Credentials = new NetworkCredential(User, Password);
+            request.UsePassive = false;
+
+            FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+            Stream responseStream = response.GetResponseStream();
+            StreamReader reader = new StreamReader(responseStream);
+            temp_txt = reader.ReadToEnd();
+            responseStream.Close();
+            reader.Close();
+            request.Abort();
+            file_info_line_by_line = temp_txt.Split((new Char[] { '\n', }), StringSplitOptions.RemoveEmptyEntries);
+            for (int a = 1; a < file_info_line_by_line.Count(); a++)
+            {
+                temp_data_single = file_info_line_by_line[a].Split(new char[] { ' ' }, 9, StringSplitOptions.RemoveEmptyEntries);
+                if (!temp_data_single[0].StartsWith("d") && (temp_data_single[8] != "." || temp_data_single[8] != ".."))
+                {
+                    Download_FTP_File(User, Password, Local_Directory, FTP_Path+"//"+temp_data_single[8], helperBW , e);
+                }
+                else if (temp_data_single[8] != "." && temp_data_single[8] != "..") { Directory.CreateDirectory(Local_Directory+"\\"+ temp_data_single[8]); FTP_Linux_List_Directory(FTP_Path + "//" + temp_data_single[8], Local_Directory + "\\" + temp_data_single[8], helperBW , e); }
+            }
+        }
+
+        public void FTP_Window_List_Directory(string FTP_Path, string Local_Directory, BackgroundWorker helperBW, DoWorkEventArgs e)
+        {
+            string User = textBox_user_input.Text;
+            string Password = textBox_password_input.Text;
+
+            string[] temp_data_single = null; string temp_txt = ""; string[] file_info_line_by_line = null;
+            FtpWebRequest request = (FtpWebRequest)WebRequest.Create(FTP_Path + "\\");  //get file list with details from FTP, only 1 IP_URL is needed
+            request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+            request.Credentials = new NetworkCredential(User, Password);
+            request.UsePassive = false;
+
+            FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+            Stream responseStream = response.GetResponseStream();
+            StreamReader reader = new StreamReader(responseStream);
+            temp_txt = reader.ReadToEnd();
+            responseStream.Close();
+            reader.Close();
+            request.Abort();
+            file_info_line_by_line = temp_txt.Split((new Char[] { '\n', }), StringSplitOptions.RemoveEmptyEntries);
+            for (int a = 0; a < file_info_line_by_line.Count(); a++)
+            {
+                temp_data_single = file_info_line_by_line[a].Split(new char[] { ' ' }, 4, StringSplitOptions.RemoveEmptyEntries);
+                //    temp_data_single = file_info_line_by_line[a].Split(new char[] { ' ' }, 9, StringSplitOptions.RemoveEmptyEntries);
+                if (temp_data_single[2] != "<DIR>")
+                {
+                    Download_FTP_File(User, Password, Local_Directory, FTP_Path + "//" + temp_data_single[3].Trim() , helperBW , e);
+                }
+                    else  { Directory.CreateDirectory(Local_Directory + "\\" + temp_data_single[3].Trim()); FTP_Window_List_Directory(FTP_Path + "//" + temp_data_single[3].Trim(), Local_Directory + "\\" + temp_data_single[3].Trim(), helperBW , e); }
+            }
+        }
+        //----------------------------Linux FTP Access------------------------------------------------------------------------------------------------------------------
+        private void button_connect_Click(object sender, EventArgs e)
+        {
+            //backgroundWorker1.RunWorkerAsync(2000);
+            string _ftpurl = textBox_IP_Input.Text;
+            string User = textBox_user_input.Text;
+            string Password = textBox_password_input.Text;
+            groupBox2.Enabled = true;
+            button_Download.Image = null;
+            //URL_Ori is the top directory and _ftpurl is the folder wish the retrieve file list available in tester
+            string startup_path = Application.StartupPath;
+            List<File_Info> list = new List<File_Info> { };
+            dataGridView_Display.Rows.Clear();
+            try
+            {
+                textBox_current_path.Text = "ftp://" + _ftpurl;
+                FtpWebRequest request = (FtpWebRequest)WebRequest.Create("ftp://" + _ftpurl + "//");  //get file list with details from FTP, only 1 IP_URL is needed
+                request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+                request.Credentials = new NetworkCredential(User, Password);
+                request.UsePassive = false;
+
+                FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+                //Window System Start Here----------------------------------------------------------------------------------------------------------------------
+
+
+                if (response.BannerMessage.ToString().Contains("220 Microsoft FTP"))
+                {
+                    FTP_Window_List_Directory_Details(request, response);
+                }
+                //Window System Start Here ----------------------------------------------------------------------------------------------------------------------
+                //Unix System Start Here----------------------------------------------------------------------------------------------------------------------
+                else
+                {
+                    FTP_Linux_List_Directory_Details(request, response);
+                }
+                FTP_Path_Backward.Clear();
+                FTP_Path_Forward.Clear();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message.ToString(), "Alert", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            textBox_download_path.Text = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            
+        }
+
+        private void button_Download_Click(object sender, EventArgs e)
+        {
+            button_Download.Enabled = false;
+            button_stop_download.Enabled = true;
+            button_stop_download.Image = null;
+            dataGridView_Display.Enabled = false;
+            button_back.Enabled = false;
+            button_forward.Enabled = false;
+            textBox_filter.Enabled = false;
+            button_filter.Enabled = false;
+            button_Clear_Filter.Enabled = false;
+            backgroundWorker1.RunWorkerAsync(20000);
+
+            //try
+            //{
+            //    Int32 selectedRowCount = dataGridView_Display.Rows.GetRowCount(DataGridViewElementStates.Selected);
+            //    string LocalDirectory = textBox_download_path.Text;
+            //    string _ftpurl = textBox_current_path.Text;
+            //    string User = textBox_user_input.Text;
+            //    string Password = textBox_password_input.Text;
+            //    for (int i = 0; i < selectedRowCount; i++)
+            //    {
+            //        if (dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[2].Value.ToString() != "<DIR>")
+            //            Download_FTP_File(User, Password, LocalDirectory, textBox_current_path.Text + "//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString());
+            //        else
+            //        {
+            //            FtpWebRequest request = (FtpWebRequest)WebRequest.Create(_ftpurl + "//"); //get file list with details from FTP, only 1 IP_URL is needed
+            //            request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+            //            request.Credentials = new NetworkCredential(User, Password);
+            //            FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+            //            if (!response.BannerMessage.ToString().Contains("220 Microsoft FTP"))
+            //            {
+            //                Directory.CreateDirectory(LocalDirectory+"//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString());
+            //                FTP_Linux_List_Directory(textBox_current_path.Text + "//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString(), LocalDirectory + "\\" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString());
+            //            }
+            //            else if (response.BannerMessage.ToString().Contains("220 Microsoft FTP"))
+            //            {
+            //                Directory.CreateDirectory(LocalDirectory + "//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString());
+            //                FTP_Window_List_Directory(textBox_current_path.Text + "//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString(), LocalDirectory + "\\" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString());
+            //            }
+            //            request.Abort();
+            //            response.Close();
+            //        }
+
+            //    }
+            //    MessageBox.Show("Done Download");
+            //}
+            //catch (Exception ex) { MessageBox.Show(ex.Message.ToString(), "Alert", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        }
+
+        public void Download_FTP_File(string User, string Password, string LocalDirectory, string Full_Path, BackgroundWorker helperBW, DoWorkEventArgs e)
+        {
+                FtpWebRequest requestFileDownload = (FtpWebRequest)WebRequest.Create(Full_Path);      //use stream method and ftpwebrequest method to download file
+                string File_Name = Path.GetFileName(Full_Path);
+                requestFileDownload.Credentials = new NetworkCredential(User, Password);
+                requestFileDownload.Method = WebRequestMethods.Ftp.DownloadFile;
+                FtpWebResponse responseFileDownload = (FtpWebResponse)requestFileDownload.GetResponse();
+                Stream responseStream = responseFileDownload.GetResponseStream();
+                if (Directory.Exists(LocalDirectory) == false) { Directory.CreateDirectory(LocalDirectory); }
+                FileStream writeStream = new FileStream(LocalDirectory + "//" + File_Name, FileMode.Create);
+                int Length = 2048;
+                Byte[] buffer = new Byte[Length];
+                int bytesRead = responseStream.Read(buffer, 0, Length);
+                while (bytesRead > 0)
+                     {
+                     writeStream.Write(buffer, 0, bytesRead);
+                     bytesRead = responseStream.Read(buffer, 0, Length);
+                        if (helperBW.CancellationPending)
+                            {
+                                e.Cancel = true;
+                                responseStream.Close();
+                                writeStream.Close();
+                                System.IO.File.Delete(LocalDirectory + "//" + File_Name);
+                                MessageBox.Show(File_Name +" is deleted due to a halt in download process");
+                                return;
+                            }
+                        }
+                responseStream.Close();
+                writeStream.Close();
+                requestFileDownload = null;
+        }
+
+        private void dataGridView1_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            string _ftpurl = "";
+            FTP_Path_Forward.Clear();
+            Int32 selectedRowCount = dataGridView_Display.Rows.GetRowCount(DataGridViewElementStates.Selected);
+            if (selectedRowCount > 0)
+            {
+                for (int i = 0; i < selectedRowCount; i++)
+                {  _ftpurl = textBox_current_path.Text + "//" + dataGridView_Display[0,dataGridView_Display.CurrentCell.RowIndex].Value ; 
+            }
+            }
+            if (dataGridView_Display[0, dataGridView_Display.CurrentCell.RowIndex].Value != null)
+            {
+                string User = textBox_user_input.Text;
+                string Password = textBox_password_input.Text;
+                //URL_Ori is the top directory and _ftpurl is the folder wish the retrieve file list available in tester
+                string startup_path = Application.StartupPath;
+                List<File_Info> list = new List<File_Info> { };
+                try
+                {
+                    FtpWebRequest request = (FtpWebRequest)WebRequest.Create(_ftpurl + "//"); //get file list with details from FTP, only 1 IP_URL is needed
+                    request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+                    request.Credentials = new NetworkCredential(User, Password);
+                    FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+                    if (response.BannerMessage.ToString().Contains("220 Microsoft FTP"))
+                    {
+                        dataGridView_Display.Rows.Clear();
+                        FTP_Window_List_Directory_Details(request, response);
+                    }
+
+                    else
+                    {
+                        dataGridView_Display.Rows.Clear();
+                        FTP_Linux_List_Directory_Details(request, response);
+                    }
+                    FTP_Path_Backward.Push(textBox_current_path.Text);
+                    textBox_current_path.Text = _ftpurl;
+
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message.ToString(), "Alert", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void button_download_path_Click(object sender, EventArgs e)
+        {
+            using (var fbd = new FolderBrowserDialog())
+            {
+                DialogResult result = fbd.ShowDialog();
+
+                if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(fbd.SelectedPath))
+                {
+                    textBox_download_path.Text = fbd.SelectedPath;
+                }
+            }
+        }
+        private void button_back_Click(object sender, EventArgs e)
+        {
+            try
+            {
+
+                string _ftpurl = textBox_IP_Input.Text;
+                string User = textBox_user_input.Text;
+                string Password = textBox_password_input.Text;
+                //URL_Ori is the top directory and _ftpurl is the folder wish the retrieve file list available in tester
+                string startup_path = Application.StartupPath;
+                List<File_Info> list = new List<File_Info> { };
+                if (FTP_Path_Backward.Count != 0)
+                {
+                    string temp_back = FTP_Path_Backward.Peek().ToString();
+                    dataGridView_Display.Rows.Clear();
+                    if (FTP_Path_Backward.Peek().ToString() != "")
+                    {
+                        FtpWebRequest request = (FtpWebRequest)WebRequest.Create(FTP_Path_Backward.Peek().ToString() + "//");  //get file list with details from FTP, only 1 IP_URL is needed
+                        request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+                        request.Credentials = new NetworkCredential(User, Password);
+                        FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+                        if (response.BannerMessage.ToString().Contains("220 Microsoft FTP"))
+                        {
+                            FTP_Window_List_Directory_Details(request, response);
+                        }
+
+                        else
+                        {
+                            FTP_Linux_List_Directory_Details(request, response);
+                        }
+                    }
+                    if (FTP_Path_Backward.Count != 0)
+                    {
+                        var x = FTP_Path_Backward.Pop();
+                        FTP_Path_Forward.Push(textBox_current_path.Text);
+                    }
+                    textBox_current_path.Text = temp_back;
+                }
+            }
+            catch (Exception) { }
+        }
+
+        private void button_forward_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                
+                string _ftpurl = textBox_IP_Input.Text;
+                string User = textBox_user_input.Text;
+                string Password = textBox_password_input.Text;
+                //URL_Ori is the top directory and _ftpurl is the folder wish the retrieve file list available in tester
+                string startup_path = Application.StartupPath;
+                List<File_Info> list = new List<File_Info> { };
+                if (FTP_Path_Forward.Count != 0)
+                {
+                    FTP_Path_Backward.Push(textBox_current_path.Text);
+                    textBox_current_path.Text = FTP_Path_Forward.Peek().ToString();
+                    dataGridView_Display.Rows.Clear();
+                    FtpWebRequest request = (FtpWebRequest)WebRequest.Create(FTP_Path_Forward.Peek().ToString());  //get file list with details from FTP, only 1 IP_URL is needed
+                    request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+                    request.Credentials = new NetworkCredential(User, Password);
+                    FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+                    if (response.BannerMessage.ToString().Contains("220 Microsoft FTP"))
+                    {
+                        FTP_Window_List_Directory_Details(request, response);
+                    }
+                    else
+                    {
+                        FTP_Linux_List_Directory_Details(request, response);
+                    }
+                    var x = FTP_Path_Forward.Pop();
+                }
+            }
+            catch (Exception) { }
+        }
+
+        private void dataGridView_Display_RowPostPaint(object sender, DataGridViewRowPostPaintEventArgs e)
+        {
+            var grid = sender as DataGridView;
+            var rowIdx = (e.RowIndex + 1).ToString();
+
+            var centerFormat = new StringFormat()
+            {
+                // right alignment might actually make more sense for numbers
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center
+            };
+
+            var headerBounds = new Rectangle(e.RowBounds.Left, e.RowBounds.Top, grid.RowHeadersWidth, e.RowBounds.Height);
+            e.Graphics.DrawString(rowIdx, this.Font, SystemBrushes.ControlText, headerBounds, centerFormat);
+        }
+
+        private void comboBox_Site_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var config = new IniFile("Tester.ini");
+            textBox_IP_Input.Text = config.Read("FTP_URL_Ori", comboBox_Site.Text);
+            textBox_user_input.Text = config.Read("User", comboBox_Site.Text);
+            textBox_password_input.Text = config.Read("Password", comboBox_Site.Text);
+        }
+
+        private void newSiteSetupToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Tester_Setup form2 = new Tester_Setup();
+            form2.Show();
+        }
+
+        private void comboBox_Site_Click(object sender, EventArgs e)
+        {
+            comboBox_Site.Items.Clear();
+            IniFile config = new IniFile();
+            var x = config.GetSection(Application.StartupPath + "\\Tester.ini");
+
+            foreach (string tester in x)
+            {
+                comboBox_Site.Items.Add(tester);
+            }
+
+        }
+
+        private void removeSiteToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Site_Remove form2 = new Site_Remove();
+            form2.Show();
+        }
+
+        private void modifyExistingSiteToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Site_Modification form2 = new Site_Modification();
+            form2.Show();
+        }
+
+        private void button_filter_Click(object sender, EventArgs e)
+        {
+            for (int DGV = 0; DGV < dataGridView_Display.Rows.Count -1; DGV++)          //load how many tester in INI file
+            {
+                if (!dataGridView_Display[0, DGV].Value.ToString().Contains(textBox_filter.Text)){ dataGridView_Display.Rows.RemoveAt(DGV);DGV -= 1; }
+            }
+        }
+
+        private void button_Clear_Filter_Click(object sender, EventArgs e)
+        {
+            string User = textBox_user_input.Text;
+            string Password = textBox_password_input.Text;
+            //URL_Ori is the top directory and _ftpurl is the folder wish the retrieve file list available in tester
+            string startup_path = Application.StartupPath;
+            List<File_Info> list = new List<File_Info> { };
+            dataGridView_Display.Rows.Clear();
+            try
+            {
+                FtpWebRequest request = (FtpWebRequest)WebRequest.Create(textBox_current_path.Text);  //get file list with details from FTP, only 1 IP_URL is needed
+                request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+                request.Credentials = new NetworkCredential(User, Password);
+                request.UsePassive = false;
+
+                FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+                //Window System Start Here----------------------------------------------------------------------------------------------------------------------
+
+
+                if (response.BannerMessage.ToString().Contains("220 Microsoft FTP"))
+                {
+                    FTP_Window_List_Directory_Details(request, response);
+                }
+                //Window System Start Here ----------------------------------------------------------------------------------------------------------------------
+                //Unix System Start Here----------------------------------------------------------------------------------------------------------------------
+                else
+                {
+                    FTP_Linux_List_Directory_Details(request, response);
+                }
+                FTP_Path_Backward.Clear();
+                FTP_Path_Forward.Clear();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message.ToString(), "Alert", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void dataGridView_Display_SelectionChanged(object sender, EventArgs e)
+        {
+            label_selected_count.Text = "Selected Items = " + dataGridView_Display.SelectedRows.Count.ToString();
+        }
+
+        private void helpToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            
+        }
+
+        private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
+        {
+            BackgroundWorker helperBW = sender as BackgroundWorker;
+            int arg = (int)e.Argument;
+            e.Result = BackgroundProcessLogicMethod(helperBW, arg);
+            backgroundWorker1.ReportProgress(0);
+            double progress_percent = 0;
+            try
+            {
+                Int32 selectedRowCount = dataGridView_Display.Rows.GetRowCount(DataGridViewElementStates.Selected);
+                string LocalDirectory = textBox_download_path.Text;
+                string _ftpurl = textBox_current_path.Text;
+                string User = textBox_user_input.Text;
+                string Password = textBox_password_input.Text;
+                if (textBox_download_path.InvokeRequired)
+                {
+                    textBox_download_path.Invoke(new MethodInvoker(delegate { LocalDirectory = textBox_download_path.Text; }));
+                }
+                if (textBox_current_path.InvokeRequired)
+                {
+                    textBox_current_path.Invoke(new MethodInvoker(delegate { _ftpurl = textBox_current_path.Text; }));
+                }
+                if (textBox_user_input.InvokeRequired)
+                {
+                    textBox_user_input.Invoke(new MethodInvoker(delegate { User = textBox_user_input.Text; }));
+                }
+                if (textBox_password_input.InvokeRequired)
+                {
+                    textBox_password_input.Invoke(new MethodInvoker(delegate { Password = textBox_password_input.Text; }));
+                }
+                for (int i = 0; i < selectedRowCount; i++)
+                {
+                    if (dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[2].Value.ToString() != "<DIR>")
+                        Download_FTP_File(User, Password, LocalDirectory, _ftpurl + "//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString() , helperBW , e);
+                    else
+                    {
+                        FtpWebRequest request = (FtpWebRequest)WebRequest.Create(_ftpurl + "//"); //get file list with details from FTP, only 1 IP_URL is needed
+                        request.Method = WebRequestMethods.Ftp.ListDirectoryDetails;
+                        request.Credentials = new NetworkCredential(User, Password);
+                        FtpWebResponse response = (FtpWebResponse)request.GetResponse();
+                        if (!response.BannerMessage.ToString().Contains("220 Microsoft FTP"))
+                        {
+                            Directory.CreateDirectory(LocalDirectory + "//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString());
+                            FTP_Linux_List_Directory(_ftpurl + "//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString(), LocalDirectory + "\\" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString(), helperBW ,e);
+                        }
+                        else if (response.BannerMessage.ToString().Contains("220 Microsoft FTP"))
+                        {
+                            Directory.CreateDirectory(LocalDirectory + "//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString());
+                            FTP_Window_List_Directory(_ftpurl + "//" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString(), LocalDirectory + "\\" + dataGridView_Display.Rows[dataGridView_Display.SelectedRows[i].Index].Cells[0].Value.ToString(), helperBW , e);
+                        }
+                        request.Abort();
+                        response.Close();
+                    }
+                    progress_percent = ((1.00+i) / selectedRowCount) *100;
+                    backgroundWorker1.ReportProgress(Convert.ToInt32(progress_percent));
+                    if (helperBW.CancellationPending)
+                    {
+                        e.Cancel = true;
+                        return;
+                    }
+                }
+                backgroundWorker1.ReportProgress(100);
+                //MessageBox.Show("Done Download");
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message.ToString(), "Alert", MessageBoxButtons.OK, MessageBoxIcon.Error); backgroundWorker1.ReportProgress(0); }
+            //if (textBox_user_input.InvokeRequired)
+            //{
+            //    textBox_user_input.Invoke(new MethodInvoker(delegate { User = textBox_user_input.Text; }));
+            //}
+        }
+        private int BackgroundProcessLogicMethod(BackgroundWorker bw, int a)
+        {
+            int result = 0;
+            System.Threading.Thread.Sleep(20000);
+            //MessageBox.Show("I was doing some work in the background.");
+            return result;
+        }
+
+        private void backgroundWorker1_ProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            try
+            {
+                progressBar1.Value = e.ProgressPercentage;
+            }
+            catch (Exception) { MessageBox.Show("Something is wrong"); }
+        }
+
+        private void backgroundWorker1_RunWorkerCompleted_1(object sender, RunWorkerCompletedEventArgs e)
+        {
+            button_Download.Enabled = true;
+            button_stop_download.Enabled = false;
+            //button_stop_download.Image =  Image.FromFile(Application.StartupPath + "\\picture\\blue-texture-32.jpg");
+            dataGridView_Display.Enabled = true;
+            button_back.Enabled = true;
+            button_forward.Enabled = true;
+            textBox_filter.Enabled = true;
+            button_filter.Enabled = true;
+            button_Clear_Filter.Enabled = true;
+            if (e.Cancelled) { MessageBox.Show("Operation was canceled"); }
+            else if (e.Error != null) { MessageBox.Show(e.Error.Message); }
+            else if (!e.Cancelled) { MessageBox.Show("Done Download"); }
+            //else MessageBox.Show(e.Result.ToString());
+        }
+
+        private void button_stop_download_Click(object sender, EventArgs e)
+        {
+            if (backgroundWorker1.IsBusy)
+                backgroundWorker1.CancelAsync();
+        }
+    }
+}

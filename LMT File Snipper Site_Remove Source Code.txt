@@ -1,0 +1,43 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace LMT_File_Snipper
+{
+    public partial class Site_Remove : Form
+    {
+        public Site_Remove()
+        {
+            InitializeComponent();
+        }
+
+        private void comboBox_Site_Click(object sender, EventArgs e)
+        {
+            comboBox_Site.Items.Clear();
+            IniFile config = new IniFile("Tester.ini");
+            var x = config.GetSection(Application.StartupPath + "\\Tester.ini");
+
+            foreach (string tester in x)
+            {
+                comboBox_Site.Items.Add(tester);
+            }
+
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            IniFile config = new IniFile("Tester.ini");
+            config.DeleteSection(comboBox_Site.Text);
+        }
+
+        private void comboBox_Site_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+    }
+}
